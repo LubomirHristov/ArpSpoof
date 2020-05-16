@@ -15,6 +15,7 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--target", help="Specify target ip")
     parser.add_argument("-g", "--gateway", help="Specify spoof ip")
+    parser.add_argument("-f", "--forward", type=int, help="Allow ip forwarding")
     return parser.parse_args()
 
 
@@ -140,7 +141,10 @@ print(f"[*] Gateway IP address: {gateway_ip_str}")
 print(f"[*] Target IP address: {target_ip_str} \n")
 
 # Enable IP Forwarding on ubuntu
-os.system("sysctl -w net.ipv4.ip_forward=1")
+if arguments.forward:
+    os.system("sysctl -w net.ipv4.ip_forward=1")
+else:
+    os.system("sysctl -w net.ipv4.ip_forward=0")
 
 # Binary gateway and target IP
 gateway_ip = socket.inet_aton(gateway_ip_str)
